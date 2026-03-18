@@ -226,11 +226,21 @@ export default function ContactPage() {
     subject: "",
     message: "",
   });
-  const [submitted, setSubmitted] = useState(false);
+  const [formStep, setFormStep] = useState<"idle" | "loading" | "success">("idle");
+  // Keep submitted as alias for backward compat with JSX below
+  const submitted = formStep === "success";
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSubmitted(true);
+    if (!formData.name.trim() || !formData.email.trim() || !formData.message.trim()) return;
+    setFormStep("loading");
+    await new Promise((r) => setTimeout(r, 1500));
+    setFormStep("success");
+  };
+
+  const handleReset = () => {
+    setFormStep("idle");
+    setFormData({ name: "", email: "", subject: "", message: "" });
   };
 
   return (
@@ -359,17 +369,30 @@ export default function ContactPage() {
               <h2 className="text-2xl font-bold text-[#8b1a1a] mb-4">
                 Send a Message
               </h2>
-              {submitted ? (
+              {formStep === "loading" ? (
+                <Card>
+                  <CardContent className="p-8 text-center">
+                    <div
+                      className="w-12 h-12 border-4 border-stone-200 rounded-full mx-auto mb-4 animate-spin"
+                      style={{ borderTopColor: "#8b1a1a" }}
+                    />
+                    <p className="text-stone-600 font-medium">Sending your message...</p>
+                  </CardContent>
+                </Card>
+              ) : submitted ? (
                 <Card>
                   <CardContent className="p-8 text-center">
                     <div className="text-5xl mb-3">✅</div>
                     <h3 className="text-xl font-bold text-stone-900 mb-2">
                       Message Sent!
                     </h3>
-                    <p className="text-stone-500">
-                      Thank you for reaching out. We will get back to you at{" "}
-                      <strong>{formData.email}</strong> within 24 hours.
+                    <p className="text-stone-500 mb-6">
+                      We&apos;ll get back to you within 24 hours at{" "}
+                      <strong>{formData.email}</strong>.
                     </p>
+                    <Button variant="outline" onClick={handleReset}>
+                      Send Another Message
+                    </Button>
                   </CardContent>
                 </Card>
               ) : (
@@ -442,7 +465,12 @@ export default function ContactPage() {
                           className="flex w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm min-h-28 resize-y focus:outline-none focus:ring-2 focus:ring-[#8b1a1a]"
                         />
                       </div>
-                      <Button type="submit" className="w-full" size="lg">
+                      <Button
+                        type="submit"
+                        className="w-full"
+                        size="lg"
+                        disabled={!formData.name.trim() || !formData.email.trim() || !formData.message.trim()}
+                      >
                         Send Message
                       </Button>
                     </form>
