@@ -2,6 +2,7 @@ import type { Metadata } from "next"
 import "./globals.css"
 import { Header } from "@/components/layout/header"
 import { Footer } from "@/components/layout/footer"
+import { headers } from "next/headers"
 
 export const metadata: Metadata = {
   title: {
@@ -13,17 +14,21 @@ export const metadata: Metadata = {
   keywords: ["Hindu temple", "Redmond", "Venkateswara", "Balaji", "temple", "Washington"],
 }
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
+  const headersList = await headers()
+  const pathname = headersList.get("x-pathname") || ""
+  const isAdminRoute = pathname.startsWith("/admin")
+
   return (
     <html lang="en" suppressHydrationWarning>
       <body>
-        <Header />
+        {!isAdminRoute && <Header />}
         <main className="min-h-screen">{children}</main>
-        <Footer />
+        {!isAdminRoute && <Footer />}
       </body>
     </html>
   )

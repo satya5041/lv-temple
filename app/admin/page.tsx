@@ -120,8 +120,7 @@ export default function AdminDashboardPage() {
   );
 
   return (
-    <main className="min-h-screen bg-[#fdfcf8] pt-28 pb-16 px-4">
-      <div className="max-w-7xl mx-auto">
+    <div>
         {/* Header */}
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-10 gap-4">
           <div>
@@ -131,18 +130,6 @@ export default function AdminDashboardPage() {
             <p className="text-stone-500">
               LV Temple — Redmond, WA · Manage all temple operations
             </p>
-          </div>
-          <div className="flex gap-2">
-            <Link href="/">
-              <Button variant="outline" size="sm">
-                View Site
-              </Button>
-            </Link>
-            <Link href="/auth/login">
-              <Button variant="ghost" size="sm">
-                Sign Out
-              </Button>
-            </Link>
           </div>
         </div>
 
@@ -389,7 +376,6 @@ export default function AdminDashboardPage() {
             </div>
           </CardContent>
         </Card>
-      </div>
-    </main>
+    </div>
   );
 }
