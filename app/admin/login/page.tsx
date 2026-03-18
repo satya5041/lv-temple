@@ -1,14 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import Link from "next/link";
 
 export default function AdminLoginPage() {
-  const router = useRouter();
   const [formData, setFormData] = useState({ email: "", password: "" });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
@@ -35,8 +33,8 @@ export default function AdminLoginPage() {
         throw new Error("Access denied. Admin accounts only.");
       }
 
-      router.push("/admin");
-      router.refresh();
+      // Full page reload so server layout picks up the new cookie
+      window.location.href = "/admin";
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed");
     } finally {
