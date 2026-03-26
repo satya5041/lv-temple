@@ -9,9 +9,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Email and password are required" }, { status: 400 })
     }
 
-    // Sign in via Supabase Auth
-    const authClient = createAdminClient()
-    const { data: authData, error: authError } = await authClient.auth.signInWithPassword({
+    const supabase = createAdminClient()
+    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
       email,
       password,
     })
@@ -20,29 +19,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid email or password" }, { status: 401 })
     }
 
-    // Fetch profile using REST API directly with service role key
-    // (avoids session JWT override that can interfere with RLS bypass)
-    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-    const profileRes = await fetch(
-      `${supabaseUrl}/rest/v1/profiles?id=eq.${authData.user.id}&select=id,email,first_name,last_name,role`,
-      {
-        headers: {
-          apikey: serviceKey,
-          Authorization: `Bearer ${serviceKey}`,
-          "Content-Type": "application/json",
-        },
-      }
-    )
-    const profiles = await profileRes.json()
-    const profile = Array.isArray(profiles) ? profiles[0] : null
+    // Role is stored in app_metadata — available directly from auth, no extra DB query
+    const meta = authData.user.user_metadata ?? {}
+    const appMeta = authData.user.app_metadata ?? {}
 
     const user = {
       id: authData.user.id,
       email: authData.user.email!,
-      firstName: profile?.first_name ?? "",
-      lastName: profile?.last_name ?? "",
-      role: profile?.role ?? "devotee",
+      firstName: meta.first_name ?? "",
+      lastName: meta.last_name ?? "",
+      role: (appMeta.role as string) ?? "devotee",
     }
 
     const response = NextResponse.json({ success: true, user, message: "Login successful" })
