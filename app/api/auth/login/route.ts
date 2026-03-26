@@ -1,66 +1,63 @@
-import { NextRequest, NextResponse } from "next/server";
-
-// Mock users for demo purposes
-const MOCK_USERS = [
-  {
-    id: "u1",
-    email: "devotee@lvtemple.org",
-    password: "temple123",
-    firstName: "Priya",
-    lastName: "Sharma",
-    role: "devotee",
-  },
-  {
-    id: "admin1",
-    email: "admin@lvtemple.org",
-    password: "admin123",
-    firstName: "Temple",
-    lastName: "Admin",
-    role: "admin",
-  },
-];
+import { NextRequest, NextResponse } from "next/server"
+import { createAdminClient } from "@/lib/supabase/admin"
 
 export async function POST(request: NextRequest) {
   try {
-    const { email, password } = await request.json();
+    const { email, password } = await request.json()
 
     if (!email || !password) {
-      return NextResponse.json(
-        { error: "Email and password are required" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Email and password are required" }, { status: 400 })
     }
 
-    const user = MOCK_USERS.find(
-      (u) => u.email.toLowerCase() === email.toLowerCase() && u.password === password
-    );
+    const supabase = createAdminClient()
 
-    if (!user) {
-      return NextResponse.json(
-        { error: "Invalid email or password" },
-        { status: 401 }
-      );
+    // Sign in via Supabase Auth
+    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    })
+
+    if (authError || !authData.user) {
+      return NextResponse.json({ error: "Invalid email or password" }, { status: 401 })
     }
 
-    const { password: _, ...userWithoutPassword } = user;
+    // Fetch profile for role
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("id, email, first_name, last_name, role")
+      .eq("id", authData.user.id)
+      .single()
 
-    const response = NextResponse.json({
-      success: true,
-      user: userWithoutPassword,
-      message: "Login successful",
-    });
+    const user = {
+      id: authData.user.id,
+      email: authData.user.email!,
+      firstName: profile?.first_name ?? "",
+      lastName: profile?.last_name ?? "",
+      role: profile?.role ?? "devotee",
+    }
 
-    // Set session cookie
-    response.cookies.set("lv_session", JSON.stringify(userWithoutPassword), {
+    const response = NextResponse.json({ success: true, user, message: "Login successful" })
+
+    // Set session cookie (used by middleware for admin route protection)
+    response.cookies.set("lv_session", JSON.stringify(user), {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
-      maxAge: 60 * 60 * 24 * 7, // 7 days
+      maxAge: 60 * 60 * 24 * 7,
       path: "/",
-    });
+    })
 
-    return response;
+    // Also set Supabase access token for client-side SDK
+    response.cookies.set("sb-access-token", authData.session!.access_token, {
+      httpOnly: false,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 60 * 60 * 24 * 7,
+      path: "/",
+    })
+
+    return response
   } catch {
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }

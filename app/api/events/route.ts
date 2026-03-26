@@ -1,85 +1,57 @@
-import { NextRequest, NextResponse } from "next/server";
-import { UPCOMING_EVENTS } from "@/lib/data/mock";
+import { NextRequest, NextResponse } from "next/server"
+import { createAdminClient } from "@/lib/supabase/admin"
 
-// GET /api/events - return all events
 export async function GET(req: NextRequest) {
-  const { searchParams } = new URL(req.url);
-  const category = searchParams.get("category");
-  const limit = searchParams.get("limit");
+  const { searchParams } = new URL(req.url)
+  const category = searchParams.get("category")
+  const limit = searchParams.get("limit")
 
-  let events = UPCOMING_EVENTS;
+  const supabase = createAdminClient()
+
+  let query = supabase
+    .from("events")
+    .select("*, registered_count:registrations(count)")
+    .eq("is_active", true)
+    .order("event_date", { ascending: true })
 
   if (category && category !== "All") {
-    events = events.filter((e) => e.category === category);
+    query = query.eq("category", category)
   }
 
   if (limit) {
-    const n = parseInt(limit, 10);
-    if (!isNaN(n) && n > 0) {
-      events = events.slice(0, n);
-    }
+    const n = parseInt(limit, 10)
+    if (!isNaN(n) && n > 0) query = query.limit(n)
   }
 
-  return NextResponse.json({
-    data: events,
-    total: events.length,
-    timestamp: new Date().toISOString(),
-  });
+  const { data, error } = await query
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+
+  return NextResponse.json({ data: data ?? [], total: data?.length ?? 0 })
 }
 
-// POST /api/events - create a new event (admin only)
 export async function POST(req: NextRequest) {
   try {
-    // In production: verify admin auth token here
-    const body = await req.json();
+    const body = await req.json()
+    const { title, category, event_date, start_time, end_time, description, location, capacity, fee } = body
 
-    const {
-      title,
-      category,
-      date,
-      time,
-      endTime,
-      description,
-      location,
-      capacity,
-      fee,
-    } = body;
-
-    if (!title || !category || !date || !time || !description || !location) {
-      return NextResponse.json(
-        { error: "Missing required fields: title, category, date, time, description, location" },
-        { status: 400 }
-      );
+    if (!title || !category || !event_date || !start_time || !description || !location) {
+      return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
     }
 
-    // In production: insert into Supabase
-    const newEvent = {
-      id: `evt-${Date.now()}`,
-      title,
-      category,
-      date,
-      time,
-      endTime: endTime || time,
-      description,
-      location,
-      capacity: capacity || 100,
-      registered: 0,
-      fee: fee || 0,
-      sponsorshipAvailable: false,
-      image: null,
-      tags: [category],
-      createdAt: new Date().toISOString(),
-    };
+    const supabase = createAdminClient()
+    const { data, error } = await supabase
+      .from("events")
+      .insert({ title, category, event_date, start_time, end_time, description, location, capacity: capacity ?? 100, fee: fee ?? 0 })
+      .select()
+      .single()
 
-    return NextResponse.json(
-      { data: newEvent, message: "Event created successfully" },
-      { status: 201 }
-    );
-  } catch (error) {
-    console.error("POST /api/events error:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+    return NextResponse.json({ data, message: "Event created successfully" }, { status: 201 })
+  } catch {
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }

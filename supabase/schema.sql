@@ -82,15 +82,6 @@ CREATE TRIGGER events_updated_at
   BEFORE UPDATE ON events
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
--- View: events with registration counts
-CREATE VIEW events_with_counts AS
-  SELECT
-    e.*,
-    COUNT(r.id) FILTER (WHERE r.status = 'registered') AS registered_count
-  FROM events e
-  LEFT JOIN registrations r ON r.event_id = e.id
-  GROUP BY e.id;
-
 -- ============================================================
 -- REGISTRATIONS (event sign-ups)
 -- ============================================================
@@ -122,6 +113,15 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER registrations_qr_code
   BEFORE INSERT ON registrations
   FOR EACH ROW EXECUTE FUNCTION generate_qr_code();
+
+-- View: events with registration counts (placed here so both tables exist)
+CREATE VIEW events_with_counts AS
+  SELECT
+    e.*,
+    COUNT(r.id) FILTER (WHERE r.status = 'registered') AS registered_count
+  FROM events e
+  LEFT JOIN registrations r ON r.event_id = e.id
+  GROUP BY e.id;
 
 -- ============================================================
 -- SERVICES (pooja types)
