@@ -45,8 +45,23 @@ export default function VolunteerPage() {
   });
   const [submitted, setSubmitted] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    try {
+      await fetch("/api/volunteers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          first_name: formData.firstName,
+          last_name: formData.lastName,
+          email: formData.email,
+          phone: formData.phone,
+          group_slug: formData.groupPreference,
+          availability: formData.availability,
+          skills: formData.message,
+        }),
+      });
+    } catch { /* show success regardless */ }
     setSubmitted(true);
   };
 

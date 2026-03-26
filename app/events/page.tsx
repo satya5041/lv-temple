@@ -1,12 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { UPCOMING_EVENTS } from "@/lib/data/mock";
 
 const CATEGORIES = ["All", "Pooja", "Festival", "Cultural", "Community Service"];
 
@@ -17,7 +16,8 @@ const CATEGORY_COLORS: Record<string, string> = {
   "Community Service": "bg-green-100 text-green-800",
 };
 
-type Event = typeof UPCOMING_EVENTS[0];
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Event = any;
 
 interface RegistrationForm {
   firstName: string;
@@ -29,42 +29,62 @@ interface RegistrationForm {
 }
 
 export default function EventsPage() {
+  const [events, setEvents] = useState<Event[]>([]);
+  const [loading, setLoading] = useState(true);
   const [activeCategory, setActiveCategory] = useState("All");
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [regStep, setRegStep] = useState<"form" | "loading" | "success">("form");
+  const [regError, setRegError] = useState("");
+  const [regRef, setRegRef] = useState("");
   const [form, setForm] = useState<RegistrationForm>({
-    firstName: "",
-    lastName: "",
-    email: "",
-    phone: "",
-    attendees: 1,
-    notes: "",
+    firstName: "", lastName: "", email: "", phone: "", attendees: 1, notes: "",
   });
 
-  const filteredEvents =
-    activeCategory === "All"
-      ? UPCOMING_EVENTS
-      : UPCOMING_EVENTS.filter((e) => e.category === activeCategory);
+  useEffect(() => {
+    fetch("/api/events")
+      .then((r) => r.json())
+      .then((d) => setEvents(d.data ?? []))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const filteredEvents = activeCategory === "All"
+    ? events
+    : events.filter((e) => e.category === activeCategory);
 
   const openModal = (event: Event) => {
     setSelectedEvent(event);
     setRegStep("form");
+    setRegError("");
     setForm({ firstName: "", lastName: "", email: "", phone: "", attendees: 1, notes: "" });
   };
 
-  const closeModal = () => {
-    setSelectedEvent(null);
-    setRegStep("form");
-  };
+  const closeModal = () => { setSelectedEvent(null); setRegStep("form"); setRegError(""); };
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setRegStep("loading");
-    await new Promise((r) => setTimeout(r, 1500));
-    setRegStep("success");
+    setRegError("");
+    try {
+      const res = await fetch("/api/registrations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          event_id: selectedEvent.id,
+          guest_count: form.attendees,
+          special_notes: form.notes,
+          donor_name: `${form.firstName} ${form.lastName}`,
+          donor_email: form.email,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Registration failed");
+      setRegRef(data.data?.qr_code ?? `REG-${Date.now().toString().slice(-6)}`);
+      setRegStep("success");
+    } catch (err: unknown) {
+      setRegError(err instanceof Error ? err.message : "Registration failed");
+      setRegStep("form");
+    }
   };
-
-  const bookingRef = `EVT-${Date.now().toString().slice(-6)}`;
 
   return (
     <main className="min-h-screen bg-[#fdfcf8]">
@@ -120,7 +140,12 @@ export default function EventsPage() {
             </p>
           </div>
 
-          {filteredEvents.length === 0 ? (
+          {loading ? (
+            <div className="text-center py-20">
+              <div className="w-10 h-10 border-4 border-stone-200 rounded-full mx-auto mb-4 animate-spin" style={{ borderTopColor: "#8b1a1a" }} />
+              <p className="text-stone-400">Loading events...</p>
+            </div>
+          ) : filteredEvents.length === 0 ? (
             <div className="text-center py-20">
               <div className="text-5xl mb-4">🔍</div>
               <p className="text-stone-500 text-lg">No events found in this category.</p>
@@ -128,13 +153,14 @@ export default function EventsPage() {
           ) : (
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
               {filteredEvents.map((event) => {
-                const capacityPct = Math.round((event.registered / event.capacity) * 100);
-                const eventDate = new Date(event.date + "T00:00:00");
+                const registered = event.registered_count?.[0]?.count ?? 0;
+                const capacityPct = Math.round((registered / event.capacity) * 100);
+                const eventDate = new Date(event.event_date + "T00:00:00");
                 const month = eventDate.toLocaleString("en-US", { month: "short" });
                 const day = eventDate.getDate();
                 const weekday = eventDate.toLocaleString("en-US", { weekday: "long" });
                 const fullDate = eventDate.toLocaleString("en-US", { month: "long", day: "numeric", year: "numeric" });
-                const isFull = event.registered >= event.capacity;
+                const isFull = registered >= event.capacity;
                 const isAlmostFull = capacityPct >= 80;
 
                 return (
@@ -170,19 +196,19 @@ export default function EventsPage() {
 
                       <div className="space-y-2 text-sm text-stone-600 mb-4">
                         <div className="flex items-center gap-2"><span className="w-4 text-center">📅</span><span>{fullDate}</span></div>
-                        <div className="flex items-center gap-2"><span className="w-4 text-center">🕐</span><span>{event.time} – {event.endTime}</span></div>
+                        <div className="flex items-center gap-2"><span className="w-4 text-center">🕐</span><span>{event.start_time?.slice(0,5)} – {event.end_time?.slice(0,5)}</span></div>
                         <div className="flex items-center gap-2"><span className="w-4 text-center">📍</span><span>{event.location}</span></div>
                       </div>
 
                       <div className="flex flex-wrap gap-1 mb-4">
-                        {event.tags.map((tag) => (
+                        {(event.tags ?? []).map((tag: string) => (
                           <span key={tag} className="text-xs px-2 py-0.5 bg-stone-100 text-stone-600 rounded-full">{tag}</span>
                         ))}
                       </div>
 
                       <div className="mb-4">
                         <div className="flex justify-between text-xs text-stone-500 mb-1">
-                          <span>{event.registered} registered</span>
+                          <span>{registered} registered</span>
                           <span>{event.capacity} capacity ({capacityPct}%)</span>
                         </div>
                         <div className="w-full bg-stone-200 rounded-full h-2">
@@ -246,7 +272,7 @@ export default function EventsPage() {
               <div>
                 <h2 className="text-xl font-bold text-stone-900">{selectedEvent.title}</h2>
                 <p className="text-stone-500 text-sm mt-1">
-                  {new Date(selectedEvent.date + "T00:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })} · {selectedEvent.time} · {selectedEvent.location}
+                  {new Date(selectedEvent.event_date + "T00:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })} · {selectedEvent.start_time?.slice(0,5)} · {selectedEvent.location}
                 </p>
               </div>
               <button onClick={closeModal} className="text-stone-400 hover:text-stone-600 text-2xl font-bold leading-none ml-4 flex-shrink-0">×</button>
@@ -309,6 +335,7 @@ export default function EventsPage() {
                   <Button type="submit" size="lg" className="w-full" disabled={!form.firstName || !form.email || !form.phone}>
                     {selectedEvent.fee > 0 ? `Register & Pay $${form.attendees * selectedEvent.fee}` : "Complete Registration"}
                   </Button>
+                  {regError && <p className="text-red-500 text-sm text-center">{regError}</p>}
                   <p className="text-center text-xs text-stone-400">Confirmation sent to your email</p>
                 </form>
               )}
@@ -328,7 +355,7 @@ export default function EventsPage() {
                   <div className="bg-stone-50 rounded-xl p-4 mb-6 text-left space-y-2">
                     <div className="flex justify-between text-sm">
                       <span className="text-stone-500">Reference</span>
-                      <span className="font-bold font-mono text-[#8b1a1a]">{bookingRef}</span>
+                      <span className="font-bold font-mono text-[#8b1a1a]">{regRef}</span>
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-stone-500">Event</span>

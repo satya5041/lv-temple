@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { UPCOMING_EVENTS, DONATION_CAMPAIGNS } from "@/lib/data/mock";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { formatCurrency } from "@/lib/utils";
 
 const TESTIMONIALS = [
@@ -26,12 +26,19 @@ const TESTIMONIALS = [
   },
 ];
 
-export default function HomePage() {
-  const featuredEvents = UPCOMING_EVENTS.slice(0, 3);
-  const mainCampaign = DONATION_CAMPAIGNS[0];
-  const donationProgress = Math.round(
-    (mainCampaign.raised / mainCampaign.goal) * 100
-  );
+export default async function HomePage() {
+  const supabase = createAdminClient();
+
+  const [{ data: eventsData }, { data: campaignsData }] = await Promise.all([
+    supabase.from("events").select("*").eq("is_active", true).order("event_date").limit(3),
+    supabase.from("campaigns").select("*").eq("is_active", true).order("is_urgent", { ascending: false }).limit(1),
+  ]);
+
+  const featuredEvents = eventsData ?? [];
+  const mainCampaign = campaignsData?.[0] ?? null;
+  const donationProgress = mainCampaign
+    ? Math.round((mainCampaign.raised_amount / mainCampaign.goal_amount) * 100)
+    : 0;
 
   return (
     <main className="min-h-screen bg-[#fdfcf8]">
@@ -173,13 +180,10 @@ export default function HomePage() {
 
           <div className="grid md:grid-cols-3 gap-6 mb-10">
             {featuredEvents.map((event) => {
-              const capacityPct = Math.round(
-                (event.registered / event.capacity) * 100
-              );
-              const eventDate = new Date(event.date + "T00:00:00");
-              const month = eventDate.toLocaleString("en-US", {
-                month: "short",
-              });
+              const registered = 0;
+              const capacityPct = Math.round((registered / event.capacity) * 100);
+              const eventDate = new Date(event.event_date + "T00:00:00");
+              const month = eventDate.toLocaleString("en-US", { month: "short" });
               const day = eventDate.getDate();
 
               return (
@@ -210,9 +214,7 @@ export default function HomePage() {
                     <div className="space-y-1 text-sm text-stone-600 mb-4">
                       <div className="flex items-center gap-2">
                         <span>🕐</span>
-                        <span>
-                          {event.time} – {event.endTime}
-                        </span>
+                        <span>{event.start_time?.slice(0,5)} – {event.end_time?.slice(0,5)}</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <span>📍</span>
@@ -222,7 +224,7 @@ export default function HomePage() {
 
                     <div className="mb-4">
                       <div className="flex justify-between text-xs text-stone-500 mb-1">
-                        <span>{event.registered} registered</span>
+                        <span>{registered} registered</span>
                         <span>{event.capacity} capacity</span>
                       </div>
                       <div className="w-full bg-stone-200 rounded-full h-1.5">
@@ -329,6 +331,7 @@ export default function HomePage() {
       </section>
 
       {/* Donation Campaign */}
+      {mainCampaign && (
       <section
         className="py-20 px-4"
         style={{
@@ -338,11 +341,10 @@ export default function HomePage() {
         <div className="max-w-4xl mx-auto text-white text-center">
           <div className="text-4xl mb-4">🏛️</div>
           <h2 className="text-3xl md:text-4xl font-bold mb-3">
-            New Temple Building Fund
+            {mainCampaign.title}
           </h2>
           <p className="text-stone-200 text-lg mb-8 max-w-2xl mx-auto">
-            Help us build a permanent, larger temple to serve our growing
-            community. We have secured the land and received architectural plans.
+            {mainCampaign.description}
           </p>
 
           <div className="bg-white/10 rounded-2xl p-8 mb-8">
@@ -352,17 +354,14 @@ export default function HomePage() {
             </div>
             <div className="flex justify-between font-bold text-2xl mb-3">
               <span style={{ color: "#f0c040" }}>
-                {formatCurrency(mainCampaign.raised)}
+                {formatCurrency(mainCampaign.raised_amount)}
               </span>
-              <span>{formatCurrency(mainCampaign.goal)}</span>
+              <span>{formatCurrency(mainCampaign.goal_amount)}</span>
             </div>
             <div className="w-full bg-white/20 rounded-full h-4 mb-2">
               <div
                 className="h-4 rounded-full"
-                style={{
-                  width: `${donationProgress}%`,
-                  backgroundColor: "#f0c040",
-                }}
+                style={{ width: `${Math.min(donationProgress, 100)}%`, backgroundColor: "#f0c040" }}
               />
             </div>
             <div className="text-right text-sm text-stone-200">
@@ -390,6 +389,7 @@ export default function HomePage() {
           </Link>
         </div>
       </section>
+      )}
 
       {/* Testimonials */}
       <section className="py-20 px-4 bg-[#fdfcf8]">

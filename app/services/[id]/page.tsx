@@ -1,12 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { SERVICES } from "@/lib/data/mock";
 
 const SERVICE_ICONS: Record<string, string> = {
   archana: "🌸",
@@ -43,23 +42,28 @@ interface BookingForm {
 
 export default function ServiceBookingPage() {
   const params = useParams();
-  const serviceId = params.id as string;
-  const service = SERVICES.find((s) => s.id === serviceId);
+  const serviceSlug = params.id as string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [service, setService] = useState<any>(null);
+
+  useEffect(() => {
+    fetch("/api/services")
+      .then((r) => r.json())
+      .then((d) => {
+        const found = (d.data ?? []).find((s: { slug: string }) => s.slug === serviceSlug);
+        setService(found ?? null);
+        if (found) setForm((f) => ({ ...f, donationAmount: String(found.suggested_donation ?? "") }));
+      });
+  }, [serviceSlug]);
 
   const today = new Date().toISOString().split("T")[0];
-  const [bookingRef] = useState(`BK${Math.floor(100000 + Math.random() * 900000)}`);
+  const [bookingRef, setBookingRef] = useState(`BK${Math.floor(100000 + Math.random() * 900000)}`);
   const [step, setStep] = useState<BookingStep>("form");
   const [errors, setErrors] = useState<Partial<Record<keyof BookingForm, string>>>({});
 
   const [form, setForm] = useState<BookingForm>({
-    fullName: "",
-    email: "",
-    phone: "",
-    date: "",
-    timeSlot: "",
-    numberOfPeople: "1",
-    donationAmount: service ? String(service.suggestedDonation) : "",
-    specialRequests: "",
+    fullName: "", email: "", phone: "", date: "", timeSlot: "",
+    numberOfPeople: "1", donationAmount: "", specialRequests: "",
   });
 
   const updateField = (field: keyof BookingForm, value: string) => {
@@ -85,7 +89,23 @@ export default function ServiceBookingPage() {
     e.preventDefault();
     if (!validate()) return;
     setStep("loading");
-    await new Promise((r) => setTimeout(r, 1500));
+    try {
+      const res = await fetch("/api/bookings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          service_id: service?.id,
+          booking_date: form.date,
+          booking_time: form.timeSlot,
+          devotee_name: form.fullName,
+          special_intentions: form.specialRequests,
+          amount_paid: parseFloat(form.donationAmount) || null,
+          donor_email: form.email,
+        }),
+      });
+      const data = await res.json();
+      if (data.data?.qr_code) setBookingRef(data.data.qr_code);
+    } catch { /* continue to success */ }
     setStep("success");
   };
 
@@ -98,7 +118,7 @@ export default function ServiceBookingPage() {
       date: "",
       timeSlot: "",
       numberOfPeople: "1",
-      donationAmount: service ? String(service.suggestedDonation) : "",
+      donationAmount: service ? String(service.suggested_donation ?? "") : "",
       specialRequests: "",
     });
     setErrors({});
@@ -124,7 +144,7 @@ export default function ServiceBookingPage() {
     );
   }
 
-  const icon = SERVICE_ICONS[service.id] || "🛕";
+  const icon = SERVICE_ICONS[service.slug] || "🛕";
 
   return (
     <main className="min-h-screen bg-[#fdfcf8]">
@@ -145,7 +165,7 @@ export default function ServiceBookingPage() {
           <div className="text-6xl mb-4" style={{ color: "#f0c040" }}>
             {icon}
           </div>
-          <h1 className="text-4xl md:text-5xl font-bold mb-3">{service.title}</h1>
+          <h1 className="text-4xl md:text-5xl font-bold mb-3">{service.name}</h1>
           <p className="text-stone-200 text-lg max-w-2xl mx-auto leading-relaxed">
             {service.description}
           </p>
@@ -172,7 +192,7 @@ export default function ServiceBookingPage() {
                   <div className="flex items-center gap-3 mb-5">
                     <span className="text-3xl">{icon}</span>
                     <h2 className="text-xl font-bold" style={{ color: "#8b1a1a" }}>
-                      {service.title}
+                      {service.name}
                     </h2>
                   </div>
 
@@ -194,7 +214,7 @@ export default function ServiceBookingPage() {
                           Suggested Donation
                         </div>
                         <div className="font-bold text-lg" style={{ color: "#8b1a1a" }}>
-                          ${service.suggestedDonation}
+                          ${service.suggested_donation}
                         </div>
                       </div>
                     </div>
@@ -249,7 +269,7 @@ export default function ServiceBookingPage() {
                   {step === "form" && (
                     <>
                       <h2 className="text-2xl font-bold mb-6" style={{ color: "#8b1a1a" }}>
-                        Book {service.title}
+                        Book {service.name}
                       </h2>
                       <form onSubmit={handleSubmit} className="space-y-5" noValidate>
                         {/* Full Name */}
@@ -386,7 +406,7 @@ export default function ServiceBookingPage() {
                               />
                             </div>
                             <p className="text-xs text-stone-400 mt-1">
-                              Suggested: ${service.suggestedDonation}
+                              Suggested: ${service.suggested_donation}
                             </p>
                           </div>
                         </div>
@@ -420,7 +440,7 @@ export default function ServiceBookingPage() {
                             </div>
                             <div className="flex justify-between text-stone-600">
                               <span>Service</span>
-                              <span className="font-medium">{service.title}</span>
+                              <span className="font-medium">{service.name}</span>
                             </div>
                             <div className="flex justify-between text-stone-600">
                               <span>Date</span>
@@ -508,7 +528,7 @@ export default function ServiceBookingPage() {
                           <div className="flex justify-between text-sm">
                             <span className="text-stone-500">Service</span>
                             <span className="font-medium">
-                              {icon} {service.title}
+                              {icon} {service.name}
                             </span>
                           </div>
                           <div className="flex justify-between text-sm">

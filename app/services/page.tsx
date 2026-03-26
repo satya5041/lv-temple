@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { SERVICES } from "@/lib/data/mock";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { formatCurrency } from "@/lib/utils";
 
 const SERVICE_ICONS: Record<string, string> = {
@@ -13,7 +13,13 @@ const SERVICE_ICONS: Record<string, string> = {
   epuja: "💻",
 };
 
-export default function ServicesPage() {
+export default async function ServicesPage() {
+  const supabase = createAdminClient();
+  const { data: services } = await supabase
+    .from("services")
+    .select("*")
+    .eq("is_active", true)
+    .order("name");
   return (
     <main className="min-h-screen bg-[#fdfcf8]">
       {/* Hero */}
@@ -61,27 +67,23 @@ export default function ServicesPage() {
           </div>
 
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {SERVICES.map((service) => (
+            {(services ?? []).map((service) => (
               <Card
                 key={service.id}
                 className="hover:shadow-lg transition-all hover:-translate-y-0.5 overflow-hidden"
               >
-                {/* Service icon banner */}
                 <div
                   className="h-24 flex items-center justify-center"
-                  style={{
-                    background:
-                      "linear-gradient(135deg, #8b1a1a 0%, #5c1111 100%)",
-                  }}
+                  style={{ background: "linear-gradient(135deg, #8b1a1a 0%, #5c1111 100%)" }}
                 >
                   <span className="text-5xl">
-                    {SERVICE_ICONS[service.id] || "🛕"}
+                    {SERVICE_ICONS[service.slug] || "🛕"}
                   </span>
                 </div>
 
                 <CardContent className="p-6">
                   <h3 className="text-xl font-bold text-stone-900 mb-2">
-                    {service.title}
+                    {service.name}
                   </h3>
                   <p className="text-stone-500 text-sm leading-relaxed mb-4">
                     {service.description}
@@ -89,35 +91,22 @@ export default function ServicesPage() {
 
                   <div className="space-y-2 mb-5">
                     <div className="flex items-center justify-between text-sm">
-                      <span className="text-stone-500 flex items-center gap-1.5">
-                        <span>⏱</span> Duration
-                      </span>
-                      <span className="font-medium text-stone-900">
-                        {service.duration}
-                      </span>
+                      <span className="text-stone-500 flex items-center gap-1.5"><span>⏱</span> Duration</span>
+                      <span className="font-medium text-stone-900">{service.duration}</span>
                     </div>
                     <div className="flex items-center justify-between text-sm">
-                      <span className="text-stone-500 flex items-center gap-1.5">
-                        <span>💛</span> Suggested Donation
-                      </span>
-                      <span
-                        className="font-bold text-base"
-                        style={{ color: "#8b1a1a" }}
-                      >
-                        {formatCurrency(service.suggestedDonation)}+
+                      <span className="text-stone-500 flex items-center gap-1.5"><span>💛</span> Suggested Donation</span>
+                      <span className="font-bold text-base" style={{ color: "#8b1a1a" }}>
+                        {formatCurrency(service.suggested_donation)}+
                       </span>
                     </div>
                     <div className="flex items-start justify-between text-sm">
-                      <span className="text-stone-500 flex items-center gap-1.5">
-                        <span>📅</span> Availability
-                      </span>
-                      <span className="font-medium text-stone-900 text-right max-w-32">
-                        {service.availability}
-                      </span>
+                      <span className="text-stone-500 flex items-center gap-1.5"><span>📅</span> Availability</span>
+                      <span className="font-medium text-stone-900 text-right max-w-32">{service.availability}</span>
                     </div>
                   </div>
 
-                  <Link href={`/services/${service.id}`}>
+                  <Link href={`/services/${service.slug}`}>
                     <Button className="w-full">Book This Service</Button>
                   </Link>
                 </CardContent>
